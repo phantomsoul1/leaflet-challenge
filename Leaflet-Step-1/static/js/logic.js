@@ -18,22 +18,22 @@ L.tileLayer("https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_toke
 }).addTo(myMap);
 
 var link = 'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_week.geojson';
+var geojson;
 
 // Process data here
 d3.json(link, function(data) {
-    console.log(data);
 
-    var type = data.type;
-    var metadata = data.metadata;
-    var features = data.features;
+    console.log(data.features[0]);
 
-    console.log(features[0].properties);
-
-    L.geoJson(features, {
+    geojson = L.choropleth(data, {
+        valueProperty: function(feature) {
+            return feature.geometry.coordinates[2];
+        },
+        scale: ['yellow', 'green'],
+        steps: 10,
         pointToLayer: function(feature, latlng) {
             return L.circleMarker(latlng, {
                 radius: 3 * Number(feature.properties.mag),
-                fillColor: 'green',
                 color: 'black',
                 weight: 1,
                 opacity: 1,
@@ -41,9 +41,39 @@ d3.json(link, function(data) {
             });
         },
         onEachFeature: function(feature, layer) {
-            layer.bindPopup(`<p class='info header'>${feature.properties.title}</p>`);
+            layer.bindPopup(`<h3><a href="${feature.properties.url}" target="_blank">M ${(Math.round(feature.properties.mag * 10) / 10).toFixed(1)} ${feature.properties.type}</a></h3>` +
+                `<ul><li>${feature.properties.place}</li>` +
+                `<li>${new Date(feature.properties.time)}</li>` +
+                `<li>${feature.geometry.coordinates[2]} km (${Math.round(feature.geometry.coordinates[2] * 100 / 1.609) / 100} mi) deep</li></ul>`);
         }
     }).addTo(myMap);
+
+    var legend = L.control({ position: "bottomright" });
+    legend.onAdd = function() {
+        var div = L.DomUtil.create("div", "info legend");
+        var limits = geojson.options.limits;
+        var colors = geojson.options.colors;
+        var labels = [];
+
+        // Add min & max
+        var legendInfo = "<h1>Depth (km)</h1>" +
+        "<div class=\"labels\">" +
+            "<div class=\"min\">" + limits[0] + "</div>" +
+            "<div class=\"max\">" + limits[limits.length - 1] + "</div>" +
+        "</div>";
+
+        div.innerHTML = legendInfo;
+
+        limits.forEach(function(limit, index) {
+        labels.push("<li style=\"background-color: " + colors[index] + "\"></li>");
+        });
+
+        div.innerHTML += "<ul>" + labels.join("") + "</ul>";
+        return div;
+    };
+
+    // Adding legend to the map
+    legend.addTo(myMap);
 });
 
 // Create a new marker
